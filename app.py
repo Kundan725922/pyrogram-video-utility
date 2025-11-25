@@ -1,7 +1,7 @@
 import os
 import re
 import tempfile 
-from functools import wraps # <-- NEW: For the decorator
+from functools import wraps
 from flask import Flask, request, Response, send_from_directory, send_file 
 from pyrogram import Client
 from pyrogram.errors import UserNotParticipant
@@ -11,7 +11,8 @@ from flask_cors import CORS
 API_ID = 35172395
 API_HASH = "3cb710c4a835a23eeb73112026d46686"
 BOT_TOKEN = None 
-SESSION_NAME = "streamer_session" 
+SESSION_NAME = "streamer_session" # Fallback/local name
+SESSION_NAME_FOR_CLOUD = "cloud_streamer" # NEW: Short name for Pyrogram's internal DB file
 
 app = Flask(__name__)
 CORS(app) 
@@ -20,36 +21,40 @@ telegram_client = None
 DOWNLOADED_FILES_TO_CLEANUP = [] 
 
 # Security: Define the access token from an Environment Variable
-SECRET_ACCESS_TOKEN = os.environ.get("SERVER_ACCESS_TOKEN") # Will be set on Render
+SECRET_ACCESS_TOKEN = os.environ.get("SERVER_ACCESS_TOKEN") 
 
 # --- API KEY VALIDATION FUNCTION ---
 def check_api_key(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # 1. Check for the token in the URL query string parameter 'token'
         user_token = request.args.get('token')
         
-        # 2. Validate against the stored SECRET_ACCESS_TOKEN
+        # Check if the token is missing or incorrect
         if not SECRET_ACCESS_TOKEN or user_token != SECRET_ACCESS_TOKEN:
             return {"error": "Access Denied. Invalid or missing access token."}, 401
         
-        # 3. If correct, execute the original function (stream_video or download_video)
         return f(*args, **kwargs)
     return decorated_function
 
-# --- PYROGRAM CLIENT STARTUP (Uses Session String for Cloud) ---
+# --- PYROGRAM CLIENT STARTUP (FIXED for File Name Too Long) ---
 SESSION_STRING = os.environ.get("PYROGRAM_SESSION") 
 
 if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
     try:
         if SESSION_STRING:
-            client_session_identifier = SESSION_STRING
+            # FIX: Use a short, valid name, and pass the long string to session_string
+            telegram_client = Client(
+                SESSION_NAME_FOR_CLOUD, 
+                API_ID, 
+                API_HASH, 
+                session_string=SESSION_STRING
+            )
             print("Client starting using PYROGRAM_SESSION environment variable.")
         else:
-            client_session_identifier = SESSION_NAME
+            # Fallback to local file only
+            telegram_client = Client(SESSION_NAME, API_ID, API_HASH, bot_token=BOT_TOKEN)
             print(f"Client starting using local file: {SESSION_NAME}.session")
             
-        telegram_client = Client(client_session_identifier, API_ID, API_HASH, bot_token=BOT_TOKEN)
         telegram_client.start()
         print("Pyrogram Client started successfully!")
     except Exception as e:
@@ -68,11 +73,12 @@ def cleanup_files(exception=None):
             print(f"Error cleaning up file {file_path}: {e}")
     DOWNLOADED_FILES_TO_CLEANUP = []
 
-# --- Utility Functions (parse_link and serve_frontend remain the same) ---
+# --- Utility Functions ---
 
 @app.route('/')
 def serve_frontend():
-    return send_from_directory(os.getcwd(), 'telegram_vedio_streammer.html')
+    # FIX: Serving the renamed index.html
+    return send_from_directory(os.getcwd(), 'index.html')
 
 def parse_link(url):
     match = re.search(r't\.me/(?:c/)?([a-zA-Z0-9_-]+)/(\d+)', url)
@@ -95,6 +101,7 @@ def parse_link(url):
 @app.route('/stream-telegram-video', methods=['GET'])
 @check_api_key # <-- APPLY SECURITY CHECK
 def stream_video():
+    # FIX: Use is_connected for modern Pyrogram
     if not telegram_client or not telegram_client.is_connected:
         return {"error": "Telegram client is not connected. Check server logs."}, 503
 
@@ -142,6 +149,7 @@ def stream_video():
 @app.route('/download-telegram-video', methods=['GET'])
 @check_api_key # <-- APPLY SECURITY CHECK
 def download_video():
+    # FIX: Use is_connected for modern Pyrogram
     if not telegram_client or not telegram_client.is_connected:
         return {"error": "Telegram client is not connected. Check server logs."}, 503
 
