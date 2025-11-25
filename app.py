@@ -1,197 +1,236 @@
 import os
 import re
-import tempfile 
-from functools import wraps
-from flask import Flask, request, Response, send_from_directory, send_file 
+# send_from_directory is essential to serve the HTML file
+from flask import Flask, request, Response, send_from_directory 
 from pyrogram import Client
-from pyrogram.errors import UserNotParticipant
+from pyrogram.errors import MessageIdInvalid, UsernameInvalid, UserNotParticipant
+from pyrogram.errors.exceptions.bad_request_400 import UserNotParticipant 
+# CORS is important for local development where the HTML might be accessed differently
 from flask_cors import CORS 
 
-# --- Configuration & Environment Variables ---
+# --- Configuration (Hardcoded values are safe here) ---
+# Your API credentials are constant
 API_ID = 35172395
 API_HASH = "3cb710c4a835a23eeb73112026d46686"
-BOT_TOKEN = None 
-SESSION_NAME = "streamer_session" # Fallback/local name
-SESSION_NAME_FOR_CLOUD = "cloud_streamer" # NEW: Short name for Pyrogram's internal DB file
+
+# Fetch tokens from environment variables, allowing for both user and bot setup
+BOT_TOKEN_ENV = os.environ.get("8543685799:AAEP2ya-lXgQdQ53vZXzQsX34NX8QldZ-Z0") 
+SESSION_STRING_ENV = os.environ.get("BQIYsCsAR1EW-sPG_ClCKn1WUbmlegJoNzK4CRDAN8xh_2q3IeJmKqMaJkhXEAEQCJtILJRqitC-fMS4JeilFwf_4b7W_K_4y_YFE29xlz09L4IZty6DIbUMo1vu4OSjN4yckDJgfn0AodiFeh-ihkGJV81_6itQFzai4N9zZkFS2lXX3g-qK6sNV-WgJdG7QzploNmpUYOlqZeBU4x59hG1UZFhvA9H06AwicwSNwbctVtMVzRYbzuRlBSoyuI2XobgFxCc6qzuxgCJRcYFr2epxUuM1gQIY_qz1A5spfbmAdF9KicFTrTL0I73kC49Jlg7vIekjdzcbs3xESIzQcdJS2ux1AAAAABtI4kWAA")
+SERVER_ACCESS_TOKEN = os.environ.get("MySecretKeyForTrustedRkuser@143")
+
+# Pyrogram client will be initialized here
+telegram_client = None
 
 app = Flask(__name__)
 CORS(app) 
 
-telegram_client = None
-DOWNLOADED_FILES_TO_CLEANUP = [] 
-
-# Security: Define the access token from an Environment Variable
-SECRET_ACCESS_TOKEN = os.environ.get("SERVER_ACCESS_TOKEN") 
-
-# --- API KEY VALIDATION FUNCTION ---
-def check_api_key(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        user_token = request.args.get('token')
-        
-        # Check if the token is missing or incorrect
-        if not SECRET_ACCESS_TOKEN or user_token != SECRET_ACCESS_TOKEN:
-            return {"error": "Access Denied. Invalid or missing access token."}, 401
-        
-        return f(*args, **kwargs)
-    return decorated_function
-
-# --- PYROGRAM CLIENT STARTUP (FIXED for File Name Too Long) ---
-SESSION_STRING = os.environ.get("PYROGRAM_SESSION") 
-
+# --- PYROGRAM CLIENT STARTUP (Supports BOTH Bot and User Session) ---
+# Check if we are running in the main Flask process (not the reloader process)
 if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
     try:
-        if SESSION_STRING:
-            # FIX: Use a short, valid name, and pass the long string to session_string
+        # 1. PRIORITIZE BOT TOKEN (Recommended for reliable private chat access)
+        if BOT_TOKEN_ENV:
+            client_name = "bot_streamer"
             telegram_client = Client(
-                SESSION_NAME_FOR_CLOUD, 
+                client_name, 
                 API_ID, 
                 API_HASH, 
-                session_string=SESSION_STRING
+                bot_token=BOT_TOKEN_ENV  # <--- Use Bot Token
             )
-            print("Client starting using PYROGRAM_SESSION environment variable.")
+            print("Client starting as a BOT using BOT_TOKEN environment variable.")
+        # 2. FALLBACK to User Session String
+        elif SESSION_STRING_ENV:
+            client_name = "user_streamer" 
+            telegram_client = Client(
+                client_name, 
+                API_ID, 
+                API_HASH, 
+                session_string=SESSION_STRING_ENV # <--- Use User Session String
+            )
+            print("Client starting as USER using PYROGRAM_SESSION environment variable.")
         else:
-            # Fallback to local file only
-            telegram_client = Client(SESSION_NAME, API_ID, API_HASH, bot_token=BOT_TOKEN)
-            print(f"Client starting using local file: {SESSION_NAME}.session")
+            raise Exception("FATAL: Neither BOT_TOKEN nor PYROGRAM_SESSION is configured.")
             
+        # Start the client
         telegram_client.start()
         print("Pyrogram Client started successfully!")
+
     except Exception as e:
         print(f"Error starting Pyrogram client (FATAL): {e}")
+        print("ACTION: Check API_ID/API_HASH/BOT_TOKEN/PYROGRAM_SESSION configuration.")
+else:
+    # This runs in the reloader process, where we explicitly skip Pyrogram startup
+    print("Pyrogram client startup skipped in Flask reloader process.")
 # -------------------------------------------------------------------
 
-@app.teardown_request
-def cleanup_files(exception=None):
-    """Deletes temporary downloaded files after the request has been served."""
-    global DOWNLOADED_FILES_TO_CLEANUP
-    for file_path in DOWNLOADED_FILES_TO_CLEANUP:
-        try:
-            os.remove(file_path)
-            print(f"Cleaned up temp file: {file_path}")
-        except OSError as e:
-            print(f"Error cleaning up file {file_path}: {e}")
-    DOWNLOADED_FILES_TO_CLEANUP = []
 
-# --- Utility Functions ---
-
+# --- FIX: Route to serve the HTML file (Frontend) ---
 @app.route('/')
 def serve_frontend():
-    # FIX: Serving the renamed index.html
-    return send_from_directory(os.getcwd(), 'index.html')
+    """Serves the telegram_vedio_streammer.html file from the current directory."""
+    # This route resolves the browser security error by serving the HTML from localhost:8000.
+    return send_from_directory(os.getcwd(), 'telegram_vedio_streammer.html')
 
+# --- Utility Function to Parse Telegram Link ---
 def parse_link(url):
+    """Parses t.me/c/channel_id/message_id (private) or t.me/username/message_id (public)."""
+    # Regex to extract channel ID/username and message ID
     match = re.search(r't\.me/(?:c/)?([a-zA-Z0-9_-]+)/(\d+)', url)
     if match:
         chat_identifier_part = match.group(1)
         message_id = int(match.group(2))
+
         if url.find("/c/") != -1:
+            # Private channel ID needs the -100 prefix for Pyrogram
             try:
                 chat_identifier = int('-100' + chat_identifier_part)
             except ValueError:
                 return None, None
         else:
+            # Public channel username needs the @ prefix
             chat_identifier = "@" + chat_identifier_part 
+
         return chat_identifier, message_id
     return None, None
 
-# --------------------------------------------------------------------------------
-
-## ENDPOINT 1: STREAMING (In-Browser Playback)
+# --- Streaming Endpoint ---
 @app.route('/stream-telegram-video', methods=['GET'])
-@check_api_key # <-- APPLY SECURITY CHECK
 def stream_video():
-    # FIX: Use is_connected for modern Pyrogram
-    if not telegram_client or not telegram_client.is_connected:
-        return {"error": "Telegram client is not connected. Check server logs."}, 503
+    # Check for authentication token
+    requested_token = request.args.get('token')
+    if SERVER_ACCESS_TOKEN and requested_token != SERVER_ACCESS_TOKEN:
+        return {"error": "Invalid access token."}, 401
+
+    # We must ensure the client is running before proceeding
+    if not telegram_client or not telegram_client.is_running:
+        return {"error": "Telegram client is not running. Check server logs."}, 503
 
     telegram_url = request.args.get('url')
-    if not telegram_url: return {"error": "Missing 'url' parameter."}, 400
+    if not telegram_url:
+        return {"error": "Missing 'url' parameter."}, 400
+
     chat_id, message_id = parse_link(telegram_url)
-    if not chat_id or not message_id: return {"error": "Invalid Telegram URL format."}, 400
+
+    if not chat_id or not message_id:
+        return {"error": "Invalid Telegram URL format. Use t.me/c/ID/MSG or t.me/USERNAME/MSG."}, 400
 
     try:
+        # 1. Get the message containing the media
         message = telegram_client.get_messages(chat_id, message_ids=message_id)
-        if isinstance(message, list): message = message[0] if message else None
+
+        if isinstance(message, list):
+            message = message[0] if message else None
+
         if not message or not message.video:
-            return {"error": "Message does not contain a video or was not found."}, 404
+            return {"error": "Message does not contain a video or was not found. Check if the link is correct."}, 404
 
         file_size = message.video.file_size
         file_name = message.video.file_name
 
+        # 2. Pyrogram's generator function to stream the file data in chunks
         def generate_stream():
             try:
+                # stream_media fetches the file in small chunks suitable for streaming
                 for chunk in telegram_client.stream_media(message.video):
                     yield chunk
             except Exception as e:
                 print(f"Streaming error during generation: {e}")
 
+        # 3. Create a Flask Response object for streaming
         response = Response(
             generate_stream(), 
-            mimetype='video/mp4',
+            mimetype='video/mp4', # Crucial for browser video player compatibility
             content_type='video/mp4'
         )
         
-        # CRITICAL FIX: 'inline' for streaming
-        response.headers['Content-Disposition'] = f'inline; filename="{file_name}"' 
+        # Add necessary headers for the browser to stream and seek video content
+        response.headers['Content-Disposition'] = f'attachment; filename="{file_name}"'
         response.headers['Content-Length'] = str(file_size)
         response.headers['Accept-Ranges'] = 'bytes'
         
+        response.status_code = 200 
+
         return response
 
     except UserNotParticipant:
         return {"error": "The authenticated account is not a member of this private chat or channel."}, 403
+    except MessageIdInvalid:
+        return {"error": "Invalid message ID or chat ID. Could not locate message."}, 404
+    except UsernameInvalid:
+        return {"error": "Invalid chat username or channel ID format."}, 404
     except Exception as e:
         print(f"FATAL STREAMING SERVER ERROR: {e}")
         return {"error": f"An unexpected server error occurred: {e}"}, 500
 
-## ENDPOINT 2: DOWNLOADING (Save to User System)
+# --- Download Endpoint (Copying the logic from streaming, but for download) ---
 @app.route('/download-telegram-video', methods=['GET'])
-@check_api_key # <-- APPLY SECURITY CHECK
 def download_video():
-    # FIX: Use is_connected for modern Pyrogram
-    if not telegram_client or not telegram_client.is_connected:
-        return {"error": "Telegram client is not connected. Check server logs."}, 503
+    # Check for authentication token (re-used logic for the download endpoint)
+    requested_token = request.args.get('token')
+    if SERVER_ACCESS_TOKEN and requested_token != SERVER_ACCESS_TOKEN:
+        return {"error": "Invalid access token."}, 401
+    
+    # We must ensure the client is running before proceeding
+    if not telegram_client or not telegram_client.is_running:
+        return {"error": "Telegram client is not running. Check server logs."}, 503
 
     telegram_url = request.args.get('url')
-    
+    if not telegram_url:
+        return {"error": "Missing 'url' parameter."}, 400
+
     chat_id, message_id = parse_link(telegram_url)
-    if not chat_id or not message_id: return {"error": "Invalid Telegram URL format..."}, 400
+
+    if not chat_id or not message_id:
+        return {"error": "Invalid Telegram URL format. Use t.me/c/ID/MSG or t.me/USERNAME/MSG."}, 400
 
     try:
+        # 1. Get the message containing the media
         message = telegram_client.get_messages(chat_id, message_ids=message_id)
+
+        if isinstance(message, list):
+            message = message[0] if message else None
+
         if not message or not message.video:
-            return {"error": "Message does not contain a video or was not found."}, 404
-        
-        # 1. Download the full file to the server's disk (temp dir)
-        temp_filename = f"{message.video.file_unique_id}_{message.video.file_name}"
-        temp_file_path = os.path.join(tempfile.gettempdir(), temp_filename) 
+            return {"error": "Message does not contain a video or was not found. Check if the link is correct."}, 404
 
-        downloaded_file = telegram_client.download_media(
-            message=message,
-            file_name=temp_file_path
+        file_size = message.video.file_size
+        file_name = message.video.file_name
+
+        # 2. Pyrogram's generator function to stream the file data in chunks
+        def generate_download():
+            try:
+                # stream_media fetches the file in small chunks suitable for streaming
+                for chunk in telegram_client.stream_media(message.video):
+                    yield chunk
+            except Exception as e:
+                print(f"Download error during generation: {e}")
+
+        # 3. Create a Flask Response object for streaming/downloading
+        response = Response(
+            generate_download(), 
+            mimetype='application/octet-stream', # Forces download
+            content_type='application/octet-stream'
         )
         
-        if not downloaded_file: return {"error": "Failed to download media from Telegram."}, 500
+        # Add necessary headers to prompt a file download
+        response.headers['Content-Disposition'] = f'attachment; filename="{file_name}"'
+        response.headers['Content-Length'] = str(file_size)
+        response.status_code = 200 
 
-        # 2. Add the file path for cleanup later
-        global DOWNLOADED_FILES_TO_CLEANUP
-        DOWNLOADED_FILES_TO_CLEANUP.append(downloaded_file)
-
-        # 3. Use Flask's send_file with 'as_attachment=True' (CRITICAL)
-        response = send_file(
-            downloaded_file,
-            mimetype=message.video.mime_type,
-            as_attachment=True, # Forces the browser to download
-            download_name=message.video.file_name
-        )
-        
         return response
 
+    except UserNotParticipant:
+        return {"error": "The authenticated account is not a member of this private chat or channel."}, 403
+    except MessageIdInvalid:
+        return {"error": "Invalid message ID or chat ID. Could not locate message."}, 404
+    except UsernameInvalid:
+        return {"error": "Invalid chat username or channel ID format."}, 404
     except Exception as e:
         print(f"FATAL DOWNLOAD SERVER ERROR: {e}")
-        return {"error": f"An unexpected server error occurred during download: {e}"}, 500
+        return {"error": f"An unexpected server error occurred: {e}"}, 500
 
 # --- Start the server ---
 if __name__ == '__main__':
+    # Flask will run on http://127.0.0.1:8000/
+    # Render will ignore this and use gunicorn or the process command
     app.run(debug=True, port=8000)
