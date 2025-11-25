@@ -6,15 +6,14 @@ from pyrogram.errors import MessageIdInvalid, UsernameInvalid, UserNotParticipan
 from pyrogram.errors.exceptions.bad_request_400 import UserNotParticipant 
 from flask_cors import CORS 
 
-# --- Configuration (Hardcoded values are safe here) ---
-# Your API credentials
+# --- Configuration (Your API Details) ---
 API_ID = 35172395
 API_HASH = "3cb710c4a835a23eeb73112026d46686"
 
 # Fetch tokens from environment variables (Correctly fetches by NAME)
 BOT_TOKEN_ENV = os.environ.get("BOT_TOKEN") 
 SESSION_STRING_ENV = os.environ.get("PYROGRAM_SESSION")
-SERVER_ACCESS_TOKEN = os.environ.get("SERVER_ACCESS_TOKEN")
+SERVER_ACCESS_TOKEN = os.environ.get("SERVER_ACCESS_TOKEN") # Used for API security
 
 # Pyrogram client will be initialized here
 telegram_client = None
@@ -22,13 +21,13 @@ telegram_client = None
 app = Flask(__name__)
 CORS(app) 
 
-# --- PYROGRAM CLIENT STARTUP (Supports BOTH Bot and User Session) ---
+# --- PYROGRAM CLIENT STARTUP ---
 # Check if we are running in the main Flask process (not the reloader process)
 if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
     try:
-        # 1. PRIORITIZE BOT TOKEN (Recommended for reliable private chat access)
+        # 1. PRIORITIZE BOT TOKEN (Most reliable for private channels)
         if BOT_TOKEN_ENV:
-            client_name = "bot_streamer"
+            client_name = "bot_streamer" # Simple session name to avoid file name errors
             telegram_client = Client(
                 client_name, 
                 API_ID, 
@@ -38,7 +37,7 @@ if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
             print("Client starting as a BOT using BOT_TOKEN environment variable.")
         # 2. FALLBACK to User Session String
         elif SESSION_STRING_ENV:
-            client_name = "user_streamer" 
+            client_name = "user_streamer" # Simple session name to avoid file name errors
             telegram_client = Client(
                 client_name, 
                 API_ID, 
@@ -57,7 +56,6 @@ if not app.debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
         print(f"Error starting Pyrogram client (FATAL): {e}")
         print("ACTION: Check API_ID/API_HASH/BOT_TOKEN/PYROGRAM_SESSION configuration.")
 else:
-    # This runs in the reloader process, where we explicitly skip Pyrogram startup
     print("Pyrogram client startup skipped in Flask reloader process.")
 # -------------------------------------------------------------------
 
@@ -65,14 +63,13 @@ else:
 # --- FIX: Route to serve the HTML file (Frontend) ---
 @app.route('/')
 def serve_frontend():
-    """Serves the telegram_vedio_streammer.html file from the current directory."""
-    # This fixes the 404 Not Found error by correctly locating and serving your HTML file
-    return send_from_directory(os.getcwd(), 'telegram_vedio_streammer.html')
+    """Serves the index.html file from the current directory."""
+    # FIX: This resolves the 404 error by looking for 'index.html'
+    return send_from_directory('.', 'index.html') 
 
 # --- Utility Function to Parse Telegram Link ---
 def parse_link(url):
     """Parses t.me/c/channel_id/message_id (private) or t.me/username/message_id (public)."""
-    # Regex to extract channel ID/username and message ID
     match = re.search(r't\.me/(?:c/)?([a-zA-Z0-9_-]+)/(\d+)', url)
     if match:
         chat_identifier_part = match.group(1)
@@ -81,8 +78,6 @@ def parse_link(url):
         if url.find("/c/") != -1:
             # Private channel ID needs the -100 prefix for Pyrogram
             try:
-                # IMPORTANT: Pyrogram uses -100 prefix for channel IDs
-                # Your log shows ID 3384286590, so the chat_id should be -1003384286590
                 chat_identifier = int('-100' + chat_identifier_part)
             except ValueError:
                 return None, None
@@ -101,7 +96,6 @@ def stream_video():
     if SERVER_ACCESS_TOKEN and requested_token != SERVER_ACCESS_TOKEN:
         return {"error": "Invalid access token."}, 401
 
-    # We must ensure the client is running before proceeding
     if not telegram_client or not telegram_client.is_running:
         return {"error": "Telegram client is not running. Check server logs."}, 503
 
@@ -130,7 +124,6 @@ def stream_video():
         # 2. Pyrogram's generator function to stream the file data in chunks
         def generate_stream():
             try:
-                # stream_media fetches the file in small chunks suitable for streaming
                 for chunk in telegram_client.stream_media(message.video):
                     yield chunk
             except Exception as e:
@@ -159,19 +152,17 @@ def stream_video():
     except UsernameInvalid:
         return {"error": "Invalid chat username or channel ID format."}, 404
     except Exception as e:
-        # The FATAL STREAMING SERVER ERROR: Peer id invalid will be caught here
         print(f"FATAL STREAMING SERVER ERROR: {e}") 
         return {"error": f"An unexpected server error occurred: {e}"}, 500
 
-# --- Download Endpoint (Copying the logic from streaming, but for download) ---
+# --- Download Endpoint ---
 @app.route('/download-telegram-video', methods=['GET'])
 def download_video():
-    # Check for authentication token (re-used logic for the download endpoint)
+    # Check for authentication token
     requested_token = request.args.get('token')
     if SERVER_ACCESS_TOKEN and requested_token != SERVER_ACCESS_TOKEN:
         return {"error": "Invalid access token."}, 401
     
-    # We must ensure the client is running before proceeding
     if not telegram_client or not telegram_client.is_running:
         return {"error": "Telegram client is not running. Check server logs."}, 503
 
@@ -200,7 +191,6 @@ def download_video():
         # 2. Pyrogram's generator function to stream the file data in chunks
         def generate_download():
             try:
-                # stream_media fetches the file in small chunks suitable for streaming
                 for chunk in telegram_client.stream_media(message.video):
                     yield chunk
             except Exception as e:
@@ -227,7 +217,6 @@ def download_video():
     except UsernameInvalid:
         return {"error": "Invalid chat username or channel ID format."}, 404
     except Exception as e:
-        # The FATAL DOWNLOAD SERVER ERROR: Peer id invalid will be caught here
         print(f"FATAL DOWNLOAD SERVER ERROR: {e}")
         return {"error": f"An unexpected server error occurred: {e}"}, 500
 
