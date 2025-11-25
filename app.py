@@ -14,9 +14,9 @@ API_ID = 35172395
 API_HASH = "3cb710c4a835a23eeb73112026d46686"
 
 # Fetch tokens from environment variables, allowing for both user and bot setup
-BOT_TOKEN_ENV = os.environ.get("8543685799:AAEP2ya-lXgQdQ53vZXzQsX34NX8QldZ-Z0") 
-SESSION_STRING_ENV = os.environ.get("BQIYsCsAR1EW-sPG_ClCKn1WUbmlegJoNzK4CRDAN8xh_2q3IeJmKqMaJkhXEAEQCJtILJRqitC-fMS4JeilFwf_4b7W_K_4y_YFE29xlz09L4IZty6DIbUMo1vu4OSjN4yckDJgfn0AodiFeh-ihkGJV81_6itQFzai4N9zZkFS2lXX3g-qK6sNV-WgJdG7QzploNmpUYOlqZeBU4x59hG1UZFhvA9H06AwicwSNwbctVtMVzRYbzuRlBSoyuI2XobgFxCc6qzuxgCJRcYFr2epxUuM1gQIY_qz1A5spfbmAdF9KicFTrTL0I73kC49Jlg7vIekjdzcbs3xESIzQcdJS2ux1AAAAABtI4kWAA")
-SERVER_ACCESS_TOKEN = os.environ.get("MySecretKeyForTrustedRkuser@143")
+BOT_TOKEN_ENV = os.environ.get("BOT_TOKEN") 
+SESSION_STRING_ENV = os.environ.get("PYROGRAM_SESSION")
+SERVER_ACCESS_TOKEN = os.environ.get("SERVER_ACCESS_TOKEN")
 
 # Pyrogram client will be initialized here
 telegram_client = None
