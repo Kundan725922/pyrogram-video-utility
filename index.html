@@ -3,164 +3,150 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Telegram Video Utility</title>
+    <title>Pyrogram Video Utility Test</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --tg-blue: #0088CC;
-            --dark-bg: #1e293b;
-            --card-bg: #334155;
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb;
         }
-        body { background-color: var(--dark-bg); font-family: 'Inter', sans-serif; }
-        .tg-btn {
-            background-color: var(--tg-blue);
+        .container {
+            max-width: 800px;
+        }
+        button {
             transition: background-color 0.2s, transform 0.1s;
         }
-        .tg-btn:hover { background-color: #0077B3; }
-        .tg-btn:active { transform: scale(0.98); }
-        .loading-spinner {
-            border-top-color: #f3f3f3;
-            border-left-color: var(--tg-blue);
-            animation: spin 1s linear infinite;
+        button:hover {
+            transform: translateY(-1px);
         }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        .stream-video {
+            box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
         }
-        #videoPlayer {
-            width: 100%;
-            max-height: 80vh;
+        #video-player {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         }
-        .hidden { display: none; }
     </style>
 </head>
-<body class="p-4 md:p-8 flex items-center justify-center min-h-screen">
+<body class="p-4 md:p-8 min-h-screen flex items-center justify-center">
 
-    <div class="w-full max-w-2xl bg-card-bg text-white shadow-2xl rounded-xl p-6 md:p-8 space-y-6">
-        <h1 class="text-3xl font-extrabold text-center text-tg-blue">Telegram Video Utility</h1>
-        <p class="text-sm text-center text-gray-400">
-            Paste the Telegram message URL and your Secret Access Token to proceed.
+    <div class="container bg-white p-6 md:p-10 rounded-xl shadow-2xl w-full">
+        <h1 class="text-3xl font-bold text-gray-900 mb-6 border-b pb-2">Telegram Video Stream Tester</h1>
+        
+        <p class="text-sm text-red-600 bg-red-50 p-3 rounded-lg mb-6 font-semibold">
+            ⚠️ IMPORTANT: Ensure your Telegram client (Bot or User) is a member of the channel
+            and, if using a bot, that **Privacy Mode is DISABLED** via @BotFather.
         </p>
 
-        <div class="flex flex-col space-y-3">
-            <label for="videoUrlInput" class="block text-sm font-medium text-gray-300">Telegram Video Link</label>
-            <input type="text" id="videoUrlInput" placeholder="Paste Telegram Video URL here..."
-                   class="p-3 rounded-lg bg-slate-700 border border-slate-600 focus:ring-tg-blue focus:border-tg-blue text-white placeholder-slate-400">
-            
-            <label for="accessToken" class="block text-sm font-medium text-gray-300 pt-2">Secret Access Token</label>
-            <input type="password" id="accessToken" placeholder="Enter your secret token..."
-                   class="p-3 rounded-lg bg-slate-700 border border-slate-600 focus:ring-tg-blue focus:border-tg-blue text-white placeholder-slate-400" />
-            
-            <div class="flex space-x-3 pt-4">
-                <button id="streamButton" onclick="loadVideo('stream')"
-                        class="tg-btn text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:shadow-lg flex-1 flex items-center justify-center">
-                    ▶️ Stream Video (In-Browser)
-                </button>
-                <button id="downloadButton" onclick="loadVideo('download')"
-                        class="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:shadow-lg flex-1 flex items-center justify-center transition duration-150">
-                    ⬇️ Download Video
-                </button>
-            </div>
+        <div class="space-y-4 mb-8">
+            <label for="url-input" class="block text-sm font-medium text-gray-700">Telegram Video URL (t.me/c/&lt;chat_id&gt;/&lt;message_id&gt;)</label>
+            <input type="text" id="url-input" value="https://t.me/c/3345167232/2"
+                   class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                   placeholder="e.g., https://t.me/c/1234567890/123">
         </div>
 
-        <div id="videoContainer" class="mt-6 min-h-64 bg-slate-800 rounded-xl overflow-hidden flex items-center justify-center relative">
-            <video id="videoPlayer" controls class="rounded-xl hidden"></video>
-            <div id="statusMessage" class="text-center p-8 text-gray-400">
-                Enter a Telegram link and choose an action.
-            </div>
-            <div id="loadingIndicator" class="hidden flex flex-col items-center">
-                <div class="loading-spinner w-12 h-12 border-4 rounded-full mb-3"></div>
-                <p class="text-gray-300">Processing request...</p>
-            </div>
+        <div class="space-y-4 mb-8">
+            <label for="token-input" class="block text-sm font-medium text-gray-700">Authentication Token (SECRET_AUTH_TOKEN)</label>
+            <input type="password" id="token-input" value="MySecretKeyForTrustedRkuser@143"
+                   class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                   placeholder="YourSecretKey">
         </div>
-        
-        <div id="logMessage" class="text-xs p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-300 hidden"></div>
+
+        <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 mb-8">
+            <button onclick="streamVideo()"
+                    class="stream-video flex-1 bg-indigo-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-indigo-700">
+                Play/Stream Video
+            </button>
+            <button onclick="downloadVideo()"
+                    class="flex-1 bg-green-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-green-700">
+                Download Video (Full File)
+            </button>
+        </div>
+
+        <div class="mt-8 border-t pt-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Video Player</h2>
+            <div id="status-message" class="p-3 text-sm rounded-lg mb-4 hidden"></div>
+            <video id="video-player" controls preload="metadata" class="w-full h-auto rounded-lg bg-gray-900">
+                <source id="video-source" src="" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        </div>
+
     </div>
 
     <script>
-        const videoUrlInput = document.getElementById('videoUrlInput');
-        const videoPlayer = document.getElementById('videoPlayer');
-        const statusMessage = document.getElementById('statusMessage');
-        const loadingIndicator = document.getElementById('loadingIndicator');
-        const streamButton = document.getElementById('streamButton'); 
-        const downloadButton = document.getElementById('downloadButton'); 
-        const logMessage = document.getElementById('logMessage');
-        const accessTokenInput = document.getElementById('accessToken'); // <-- New element reference
+        const baseUrl = window.location.origin;
 
-        function showLog(message, isError = false) {
-            logMessage.textContent = message;
-            logMessage.classList.remove('hidden', 'bg-red-900/50', 'border-red-700', 'text-red-300', 'bg-green-900/50', 'border-green-700', 'text-green-300');
-            logMessage.classList.add(isError ? 'bg-red-900/50' : 'bg-green-900/50', isError ? 'border-red-700' : 'border-green-700', isError ? 'text-red-300' : 'text-green-300');
-            if (message === '') {
-                logMessage.classList.add('hidden');
+        function setStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status-message');
+            statusDiv.textContent = message;
+            statusDiv.className = 'p-3 text-sm rounded-lg mb-4';
+            statusDiv.classList.remove('hidden');
+
+            if (type === 'error') {
+                statusDiv.classList.add('bg-red-100', 'text-red-800');
+            } else if (type === 'success') {
+                statusDiv.classList.add('bg-green-100', 'text-green-800');
+            } else {
+                statusDiv.classList.add('bg-blue-100', 'text-blue-800');
             }
         }
 
-        async function loadVideo(action) {
-            const url = videoUrlInput.value.trim();
-            const token = accessTokenInput.value.trim(); // Get the token
+        function buildUrl(endpoint) {
+            const url = document.getElementById('url-input').value;
+            const token = document.getElementById('token-input').value;
+            if (!url || !token) {
+                setStatus('Please enter both URL and Token.', 'error');
+                return null;
+            }
+            const encodedUrl = encodeURIComponent(url);
+            return `${baseUrl}${endpoint}?url=${encodedUrl}&token=${token}`;
+        }
+
+        function streamVideo() {
+            const streamUrl = buildUrl('/stream-telegram-video');
+            if (!streamUrl) return;
+
+            setStatus('Attempting to stream video... (Check browser console for errors)', 'info');
             
-            if (!url || !token) { 
-                showLog('Please enter both the URL and the Secret Access Token.', true);
-                return;
-            }
+            const videoPlayer = document.getElementById('video-player');
+            const videoSource = document.getElementById('video-source');
+            
+            videoSource.src = streamUrl;
+            videoPlayer.load();
 
-            // UI state: Loading
-            videoPlayer.classList.add('hidden');
-            statusMessage.classList.add('hidden');
-            logMessage.classList.add('hidden');
-            loadingIndicator.classList.remove('hidden');
-            streamButton.disabled = true;
-            downloadButton.disabled = true;
+            videoPlayer.onerror = (e) => {
+                setStatus('Video streaming failed. Ensure the URL and Token are correct, and check server logs.', 'error');
+                console.error("Video Error:", e);
+            };
 
-            try {
-                let backendEndpoint = '';
-                
-                // Construct the token query parameter once
-                const tokenQuery = `&token=${encodeURIComponent(token)}`;
-
-                if (action === 'stream') {
-                    // Append token to the streaming URL
-                    backendEndpoint = `/stream-telegram-video?url=${encodeURIComponent(url)}${tokenQuery}`; 
-                    videoPlayer.src = backendEndpoint;
-                    
-                    videoPlayer.classList.remove('hidden');
-                    loadingIndicator.classList.add('hidden');
-                    videoPlayer.load();
-                    await videoPlayer.play();
-                    
-                    statusMessage.textContent = 'Streaming initiated. Video should start playing now.';
-                    showLog('Request sent to proxy server for streaming.', false);
-
-                } else if (action === 'download') {
-                    // Append token to the downloading URL
-                    backendEndpoint = `/download-telegram-video?url=${encodeURIComponent(url)}${tokenQuery}`; 
-                    
-                    // Trigger download via a hidden link
-                    const tempLink = document.createElement('a');
-                    tempLink.href = backendEndpoint;
-                    tempLink.download = 'telegram_video'; 
-                    document.body.appendChild(tempLink);
-                    tempLink.click();
-                    document.body.removeChild(tempLink);
-                    
-                    statusMessage.textContent = 'Download initiated. Check your browser\'s downloads.';
-                    showLog('Request sent to proxy server for download.', false);
-                }
-
-            } catch (error) {
-                console.error("Operation error:", error);
-                statusMessage.textContent = 'Error fetching video. Check the link and server console.';
-                statusMessage.classList.remove('hidden');
-                showLog('Failed. Ensure the Python server is running and authenticated.', true);
-
-            } finally {
-                // UI state: Ready
-                loadingIndicator.classList.add('hidden');
-                streamButton.disabled = false;
-                downloadButton.disabled = false;
-            }
+            videoPlayer.onloadedmetadata = () => {
+                setStatus('Video stream successfully loaded and ready to play.', 'success');
+            };
         }
+
+        function downloadVideo() {
+            const downloadLink = buildUrl('/download-telegram-video');
+            if (!downloadLink) return;
+
+            setStatus('Initiating download...', 'info');
+            
+            // Create a temporary link and click it to trigger file download
+            const a = document.createElement('a');
+            a.href = downloadLink;
+            a.download = ''; // Use empty string to let the server determine the filename
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            setStatus('Download request sent. The file should begin downloading shortly.', 'success');
+        }
+
+        // Initialize with status
+        document.addEventListener('DOMContentLoaded', () => {
+            setStatus("Enter Telegram URL and Auth Token above to start streaming or downloading.", "info");
+        });
     </script>
+
 </body>
 </html>
