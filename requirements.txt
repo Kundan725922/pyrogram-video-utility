@@ -2,3 +2,7 @@ flask
 pyrogram
 flask-cors
 gunicorn  # Use Gunicorn to run the server reliably on Render
+flask
+pyrogram
+gunicorn
+flask-cors
