@@ -1,19 +1,17 @@
 import os
 import re
-# send_from_directory is essential to serve the HTML file
 from flask import Flask, request, Response, send_from_directory 
 from pyrogram import Client
 from pyrogram.errors import MessageIdInvalid, UsernameInvalid, UserNotParticipant
 from pyrogram.errors.exceptions.bad_request_400 import UserNotParticipant 
-# CORS is important for local development where the HTML might be accessed differently
 from flask_cors import CORS 
 
 # --- Configuration (Hardcoded values are safe here) ---
-# Your API credentials are constant
+# Your API credentials
 API_ID = 35172395
 API_HASH = "3cb710c4a835a23eeb73112026d46686"
 
-# Fetch tokens from environment variables, allowing for both user and bot setup
+# Fetch tokens from environment variables (Correctly fetches by NAME)
 BOT_TOKEN_ENV = os.environ.get("BOT_TOKEN") 
 SESSION_STRING_ENV = os.environ.get("PYROGRAM_SESSION")
 SERVER_ACCESS_TOKEN = os.environ.get("SERVER_ACCESS_TOKEN")
@@ -68,7 +66,7 @@ else:
 @app.route('/')
 def serve_frontend():
     """Serves the telegram_vedio_streammer.html file from the current directory."""
-    # This route resolves the browser security error by serving the HTML from localhost:8000.
+    # This fixes the 404 Not Found error by correctly locating and serving your HTML file
     return send_from_directory(os.getcwd(), 'telegram_vedio_streammer.html')
 
 # --- Utility Function to Parse Telegram Link ---
@@ -83,6 +81,8 @@ def parse_link(url):
         if url.find("/c/") != -1:
             # Private channel ID needs the -100 prefix for Pyrogram
             try:
+                # IMPORTANT: Pyrogram uses -100 prefix for channel IDs
+                # Your log shows ID 3384286590, so the chat_id should be -1003384286590
                 chat_identifier = int('-100' + chat_identifier_part)
             except ValueError:
                 return None, None
@@ -159,7 +159,8 @@ def stream_video():
     except UsernameInvalid:
         return {"error": "Invalid chat username or channel ID format."}, 404
     except Exception as e:
-        print(f"FATAL STREAMING SERVER ERROR: {e}")
+        # The FATAL STREAMING SERVER ERROR: Peer id invalid will be caught here
+        print(f"FATAL STREAMING SERVER ERROR: {e}") 
         return {"error": f"An unexpected server error occurred: {e}"}, 500
 
 # --- Download Endpoint (Copying the logic from streaming, but for download) ---
@@ -226,11 +227,11 @@ def download_video():
     except UsernameInvalid:
         return {"error": "Invalid chat username or channel ID format."}, 404
     except Exception as e:
+        # The FATAL DOWNLOAD SERVER ERROR: Peer id invalid will be caught here
         print(f"FATAL DOWNLOAD SERVER ERROR: {e}")
         return {"error": f"An unexpected server error occurred: {e}"}, 500
 
 # --- Start the server ---
 if __name__ == '__main__':
-    # Flask will run on http://127.0.0.1:8000/
-    # Render will ignore this and use gunicorn or the process command
+    # This runs the server when executed locally
     app.run(debug=True, port=8000)
